@@ -118,12 +118,36 @@ for ii in range(bamfiles.shape[0]):
     
     vcf = pd.read_csv( vcfdir + f + '_temp.vcf', header = 0,sep = '\t',skiprows = skip_rows )
     vcf = vcf[vcf['ALT'] != '.'] # drop any sites with no alterative variant
-    #vcf['AltDepths_Tumor'] = [vcf.ix[item,9].split(':')[-1].split(',')[1:] for item in vcf.index]
-    #vcf['MaxDepth_Tumor'] = [ np.max([int(item2) for item2 in item]) for item in vcf['AltDepths_Tumor'] ]
-    #vcf = vcf[vcf['MaxDepth_Tumor'] >= 10]
+    
+    # Find the allelic depth field in each row, and ensure it's the same
+    ADcolumn = pd.Series(index = vcf.index)
+    for row in vcf.index:
+        vcfsplit = vcf.ix[row,8].split(':')
+        ADcolumn.at[row] = [item for item in range(len(vcfsplit)) if vcfsplit[item] == 'AD'][0]
+    
+    if ADcolumn.unique().shape[0] == 1:
+        ADcolumn = int(ADcolumn.unique())
+    else:
+        print('There was an error finding the unique allelic depth column...break!')
+        continue
+        
+    # Make sure there are at least 5 reads for some base here
+    vcf['AltDepths_Tumor'] = [vcf.ix[item,9].split(':')[ADcolumn].split(',')[1:] for item in vcf.index]
+    vcf['MaxDepth_Tumor'] = [ np.max([int(item2) for item2 in item]) for item in vcf['AltDepths_Tumor'] ]
+    
+    # If there is a normal, then make sure either tumor or normal has at least 5 alternate variants
+    if normalflag:
+        vcf['AltDepths_Normal'] = [vcf.ix[item,10].split(':')[ADcolumn].split(',')[1:] for item in vcf.index]
+        vcf['MaxDepth_Normal'] = [ np.max([int(item2) for item2 in item]) for item in vcf['AltDepths_Normal'] ]
+        
+        vcf = vcf[ (vcf['MaxDepth_Tumor'] >= 5) | (vcf['MaxDepth_Normal'] >= 5)]
+    
+    else:
+        # We just have tumor, make sure we have at least 5 non-ref reads at each position we keep    
+        vcf = vcf[vcf['MaxDepth_Tumor'] >= 5]
     
     # Write out VCF, making sure to remove the extra allele depth columns
-    #vcf = vcf.drop( ['AltDepths_Tumor','MaxDepth_Tumor'], axis = 1 )
+    vcf = vcf.drop( ['AltDepths_Tumor','MaxDepth_Tumor'], axis = 1 )
     vcf.to_csv( vcfdir + f + ".vcf", sep = '\t', header = None, index = None, mode = 'a' )
     
     #print(mafcall)
