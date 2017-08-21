@@ -118,12 +118,12 @@ for ii in range(bamfiles.shape[0]):
     
     vcf = pd.read_csv( vcfdir + f + '_temp.vcf', header = 0,sep = '\t',skiprows = skip_rows )
     vcf = vcf[vcf['ALT'] != '.'] # drop any sites with no alterative variant
-    vcf['AltDepths_Tumor'] = [vcf.ix[item,9].split(':')[-1].split(',')[1:] for item in vcf.index]
-    vcf['MaxDepth_Tumor'] = [ np.max([int(item2) for item2 in item]) for item in vcf['AltDepths_Tumor'] ]
-    vcf = vcf[vcf['MaxDepth_Tumor'] >= 10]
+    #vcf['AltDepths_Tumor'] = [vcf.ix[item,9].split(':')[-1].split(',')[1:] for item in vcf.index]
+    #vcf['MaxDepth_Tumor'] = [ np.max([int(item2) for item2 in item]) for item in vcf['AltDepths_Tumor'] ]
+    #vcf = vcf[vcf['MaxDepth_Tumor'] >= 10]
     
     # Write out VCF, making sure to remove the extra allele depth columns
-    vcf = vcf.drop( ['AltDepths_Tumor','MaxDepth_Tumor'], axis = 1 )
+    #vcf = vcf.drop( ['AltDepths_Tumor','MaxDepth_Tumor'], axis = 1 )
     vcf.to_csv( vcfdir + f + ".vcf", sep = '\t', header = None, index = None, mode = 'a' )
     
     #print(mafcall)
