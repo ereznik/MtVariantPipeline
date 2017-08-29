@@ -29,8 +29,13 @@ if not os.path.exists(vcfdir):
     os.makedirs(vcfdir)
 if not os.path.exists(outdir):
     os.makedirs(outdir)
+
+# List of what to map temporary MAF columns to     
+mafnamedict = {4:['t_ref_count','t_alt_count'], 6:['t_ref_fwd','t_alt_fwd'], 7:['t_ref_rev','t_alt_rev'], 8:['n_ref_count','n_alt_count'], 10:['n_ref_fwd','n_alt_fwd'], 11:['n_ref_rev','n_alt_rev']}
+
+retaincols = ','.join( ['Tumor_Sample_Barcode', 'Matched_Norm_Sample_Barcode', 't_ref_count','t_alt_count','t_ref_fwd','t_alt_fwd','t_ref_rev','t_alt_rev', 'n_ref_count','n_alt_count','n_ref_fwd','n_alt_fwd','n_ref_rev','n_alt_rev'] )
     
-# Read in the annotaitons
+# Read in the annotations
 trna = pd.read_csv('../data/MitoTIP_March2017.txt',header = 0,sep = '\t')
 mitimpact = pd.read_csv('../data/MitImpact_db_2.7.txt',header = 0,sep = '\t',decimal = ',') # note that the decimal point here is indicated as a comma, mitimpact is funny
 
@@ -85,87 +90,76 @@ for ii in range(bamfiles.shape[0]):
     if normalflag:
         
         # We have a normal bam
-        countcall = ' '.join(["/opt/common/CentOS_6-dev/bin/current/samtools mpileup --region MT --count-orphans --no-BAQ --min-MQ ",str(minmapq), "--min-BQ", str(minbq), "--ignore-RG --excl-flags UNMAP,SECONDARY,QCFAIL,DUP --BCF --output-tags DP,AD,ADF,ADR --gap-frac 0.005 --tandem-qual 80 --fasta-ref /ifs/depot/resources/dmp/data/pubdata/hg-fasta/VERSIONS/hg19/Homo_sapiens_assembly19.fasta", datadir  + f, datadir + normalbam + "| bcftools call --multiallelic-caller --ploidy GRCh37 --keep-alts ", ">", vcfdir + f + "_temp.vcf"])
-    
-        mafcall = "cmo_vcf2maf --version develop --input-vcf " + vcfdir + f + ".vcf " + "--output-maf " + outdir + f + ".maf --vcf-tumor-id " + datadir + f + " --vcf-normal-id " + datadir + normalbam + " --tumor-id " + f + " --normal-id " + normalbam
+        countcall = ' '.join(["/opt/common/CentOS_6-dev/bin/current/samtools mpileup --region MT --count-orphans --no-BAQ --min-MQ ",str(minmapq), "--min-BQ", str(minbq), "--ignore-RG --excl-flags UNMAP,SECONDARY,QCFAIL,DUP --BCF --output-tags DP,AD,ADF,ADR --gap-frac 0.005 --tandem-qual 80 --fasta-ref /ifs/depot/resources/dmp/data/pubdata/hg-fasta/VERSIONS/hg19/Homo_sapiens_assembly19.fasta", datadir  + f, datadir + normalbam + "| bcftools call --multiallelic-caller --ploidy GRCh37 --keep-alts | bcftools norm --do-not-normalize --multiallelics -any | bcftools query --format '%CHROM\t%POS\t%REF\t%ALT[\t%AD\t%DP\t%ADF\t%ADR]\n'", ">", vcfdir + f + "_temp.maf"])
+        
+        mafcall = ' '.join( ["cmo_maf2maf --version develop --input-maf", vcfdir + f + "_temp2.maf","--output-maf", outdir + f + ".maf","--retain-cols",retaincols] )
     
     else:
         # We don't have a normal bam
         print('We do not have a normal bam file for ' + f)
         
-        countcall = ' '.join(["/opt/common/CentOS_6-dev/bin/current/samtools mpileup --region MT --count-orphans --no-BAQ --min-MQ ",str(minmapq), "--min-BQ", str(minbq), "--ignore-RG --excl-flags UNMAP,SECONDARY,QCFAIL,DUP --BCF --output-tags DP,AD,ADF,ADR --gap-frac 0.005 --tandem-qual 80 --fasta-ref /ifs/depot/resources/dmp/data/pubdata/hg-fasta/VERSIONS/hg19/Homo_sapiens_assembly19.fasta", datadir + f, "| bcftools call --multiallelic-caller --ploidy GRCh37 --keep-alts ", ">", vcfdir + f + "_temp.vcf"])
-    
-        mafcall = "cmo_vcf2maf --version develop --input-vcf " + vcfdir + f + ".vcf " + "--output-maf " + outdir + f + ".maf --vcf-tumor-id " + datadir + f + " --tumor-id " + f
+        countcall = ' '.join(["/opt/common/CentOS_6-dev/bin/current/samtools mpileup --region MT --count-orphans --no-BAQ --min-MQ ",str(minmapq), "--min-BQ", str(minbq), "--ignore-RG --excl-flags UNMAP,SECONDARY,QCFAIL,DUP --BCF --output-tags DP,AD,ADF,ADR --gap-frac 0.005 --tandem-qual 80 --fasta-ref /ifs/depot/resources/dmp/data/pubdata/hg-fasta/VERSIONS/hg19/Homo_sapiens_assembly19.fasta", datadir  + f + "| bcftools call --multiallelic-caller --ploidy GRCh37 --keep-alts | bcftools norm --do-not-normalize --multiallelics -any | bcftools query --format '%CHROM\t%POS\t%REF\t%ALT[\t%AD\t%DP\t%ADF\t%ADR]\n'", ">", vcfdir + f + "_temp.maf"])
+        
+        mafcall = ' '.join( ["cmo_maf2maf --version develop --input-maf", vcfdir + f + "_temp2.maf","--output-maf", outdir + f + ".maf","--retain-cols",retaincols] )
     
     
     # Make the VCF file
     #print(countcall)
     os.system(countcall)
     
-    # Write comment lines to final VCF
-    os.system( "cat " + vcfdir + f + "_temp.vcf | grep -F '#' > " + vcfdir + f + ".vcf")
-    
-    # Read in the VCF file and only keep rows with at least 3 reads supporting the variant
-    
-    # But first, count the number of comment lines
-    skip_rows = 0
-    with open(vcfdir + f + '_temp.vcf', 'r') as ftemp:
-        for line in ftemp:
-            if line.startswith('##'):
-                skip_rows += 1
-            else:
-                break
-    
-    vcf = pd.read_csv( vcfdir + f + '_temp.vcf', header = 0,sep = '\t',skiprows = skip_rows )
-    vcf = vcf[vcf['ALT'] != '.'] # drop any sites with no alterative variant
-    
-    # Find the allelic depth field in each row, and ensure it's the same
-    ADcolumn = pd.Series(index = vcf.index)
-    for row in vcf.index:
-        vcfsplit = vcf.ix[row,8].split(':')
-        ADcolumn.at[row] = [item for item in range(len(vcfsplit)) if vcfsplit[item] == 'AD'][0]
-    
-    if ADcolumn.unique().shape[0] == 1:
-        ADcolumn = int(ADcolumn.unique())
-    else:
-        print('There was an error finding the unique allelic depth column...break!')
-        continue
-        
-    # Make sure there are at least 5 reads for some base here
-    vcf['AltDepths_Tumor'] = [vcf.ix[item,9].split(':')[ADcolumn].split(',')[1:] for item in vcf.index]
-    vcf['MaxDepth_Tumor'] = [ np.max([int(item2) for item2 in item]) for item in vcf['AltDepths_Tumor'] ]
-    
-    # If there is a normal, then make sure either tumor or normal has at least 5 alternate variants
+    # Read in the prelim MAF file, and remove any rows that have 0 non-ref reads.
+    tempmaf = pd.read_csv(vcfdir + f + "_temp.maf",header = None,sep = '\t')
+    tempmaf = tempmaf[ tempmaf[3] != '.' ]
     if normalflag:
-        vcf['AltDepths_Normal'] = [vcf.ix[item,10].split(':')[ADcolumn].split(',')[1:] for item in vcf.index]
-        vcf['MaxDepth_Normal'] = [ np.max([int(item2) for item2 in item]) for item in vcf['AltDepths_Normal'] ]
+        tempmaf.columns = ['Chromosome', 'Start_Position', 'Reference_Allele', 'Tumor_Seq_Allele2',4,'t_depth',6,7,8,'n_depth',10,11]
         
-        vcf = vcf[ (vcf['MaxDepth_Tumor'] >= 5) | (vcf['MaxDepth_Normal'] >= 5)]
-    
+        tempmaf['Tumor_Sample_Barcode'] = f
+        tempmaf['Matched_Norm_Sample_Barcode'] = normalbam
+        cols2use = [4,6,7,8,10,11]
     else:
-        # We just have tumor, make sure we have at least 5 non-ref reads at each position we keep    
-        vcf = vcf[vcf['MaxDepth_Tumor'] >= 5]
+        
+        tempmaf.columns = ['Chromosome', 'Start_Position', 'Reference_Allele', 'Tumor_Seq_Allele2',4,'t_depth',6,7]
+        
+        tempmaf['Tumor_Sample_Barcode'] = f
+        tempmaf['Matched_Norm_Sample_Barcode'] = ''
+        
+        for nacol in ['n_depth','n_ref_count', 'n_alt_count', 'n_ref_fwd', 'n_alt_fwd', 'n_ref_rev', 'n_alt_rev']:
+            tempmaf[nacol] = np.nan
+
+        
+        cols2use = [4,6,7]
     
-    # Write out VCF, making sure to remove the extra allele depth columns
-    vcf = vcf.drop( ['AltDepths_Tumor','MaxDepth_Tumor'], axis = 1 )
-    vcf.to_csv( vcfdir + f + ".vcf", sep = '\t', header = None, index = None, mode = 'a' )
+    for col in cols2use:
+        cname1 = mafnamedict[col][0]
+        cname2 = mafnamedict[col][1]
+        tempmaf[cname1] = [item.split(',')[0] for item in tempmaf[col]]
+        tempmaf[cname2] = [item.split(',')[1] for item in tempmaf[col]]
+    
+    # Drop unnecessary columns
+    tempmaf = tempmaf.drop( cols2use, 1 )
+    
+    # Make sure that any variants we keep have at least 5 reads, with at least one alternate read in both directions
+    tempmaf = tempmaf[ tempmaf['t_alt_count'].map(int) >= 5 ]
+    tempmaf = tempmaf[ tempmaf['t_alt_fwd'].map(int) >= 2 ]
+    tempmaf = tempmaf[ tempmaf['t_alt_rev'].map(int) >= 2 ]
+    
+    # Write out to a second temporary MAF file, and then call maf2maf
+    tempmaf.to_csv(vcfdir + f + "_temp2.maf",index = None,sep = '\t')
     
     #print(mafcall)
     os.system(mafcall)
     
-    #pdb.set_trace()
-    
     ####################################################################################
     ####################################################################################
     
-    # Part 2: Variant annotation. The general workflow is to annotate SNPs with tRNA and mitimpact data, and to assume that all frameshifts/nonsense are potentially pathogenic.
+    # Part 2: Variant annotation. The general workflow is to annotate SNPs with tRNA and mitimpact data, and to assume that all frameshifts/nonsense are potentially pathogenic. We also add information on supporting forward and reverse reads.
     
     # Read in the MAF file
     maf = pd.read_csv(outdir + f + '.maf',header = 0,sep = '\t',comment = '#')
     
     # Make a short name for each variant. 
     maf['ShortVariantID'] = maf['Reference_Allele'] + maf['Start_Position'].map(str) + maf['Tumor_Seq_Allele2']
-    maf.ix[maf['Variant_Type']!='SNP','ShortVariantID'] = 'NA'
+    #maf.ix[maf['Variant_Type']!='SNP','ShortVariantID'] = 'NA'
     
     # Add the annotations
     for col in trna_cols + mitimpact_cols:
@@ -178,9 +172,9 @@ for ii in range(bamfiles.shape[0]):
     maf[trna_cols] = trna.ix[ maf[ 'ShortVariantID' ], trna_cols].reset_index()[trna_cols]
     maf[mitimpact_cols] = mitimpact.ix[ maf['ShortVariantID'],:].reset_index().ix[:, mitimpact_cols]
     
-    # Add tumor and normal VAF
     maf['TumorVAF'] = maf['t_alt_count']/maf['t_depth']
-    maf['NormalVAF'] = maf['n_alt_count']/maf['n_depth']
+    if normalflag:
+        maf['NormalVAF'] = maf['n_alt_count']/maf['n_depth']
     
     ####################################################################################
     ####################################################################################
