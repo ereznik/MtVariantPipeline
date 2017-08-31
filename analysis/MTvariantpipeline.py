@@ -10,6 +10,7 @@ parser.add_argument("-o","--outdir",type=str,help="directory for MAF files")
 parser.add_argument("-b","--bamfiles",type=str,help="path to tab-delimited, no header file of tumor/normal bams. BAM names should not include the full path, just the name of the files in datadir to call variants on")
 parser.add_argument("-q","--mapq",type=int,help="minimum mapping quality, default = 10",default = 10)
 parser.add_argument("-Q","--baseq",type=int,help="minimum base quality, default = 10",default = 10)
+parser.add_argument("-g","--genome",type=str,help="Genome build to use, default = GRCh37, for gdc use GRCh38",default = "GRCh37")
 parser.add_argument("-h","--help",action='help', default=argparse.SUPPRESS,
                     help='A simple variant calling and annotation pipeline for mitochondrial DNA variants. Accepts both individual BAM files and paired tumor/normal BAM files. Because of the hairiness of multiallelic calling, we keep all positions in the VCF and then filter to remove any positions without at least 10 reads supporting the putative variant. FIX TO DO THIS FOR BOTH NORMAL AND TUMOR SAMPLES! To send a call to bsub, try bsub -R "rusage[mem=16]" -M 32 -We 120 -W 4800 -e $HOME/work/mtimpact/scratch/ -o /home/reznik/work/mtimpact/scratch/ python MTvariantpipeline.py ... with the suitable options specified. Note that we use the CMO version of b37 (which seems to use rCRS), but is named HG19.')
 
@@ -19,6 +20,7 @@ args = parser.parse_args()
 datadir = args.datadir
 vcfdir = args.vcfdir
 outdir = args.outdir
+genome = args.genome
 
 # Set key parameters
 minmapq = args.mapq
@@ -29,6 +31,19 @@ if not os.path.exists(vcfdir):
     os.makedirs(vcfdir)
 if not os.path.exists(outdir):
     os.makedirs(outdir)
+    
+# Set the parameters for the genome build
+if genome == 'GRCh37':
+    fasta = '/ifs/depot/resources/dmp/data/pubdata/hg-fasta/VERSIONS/hg19/Homo_sapiens_assembly19.fasta'
+    mtchrom = 'MT'
+    ncbibuild = 'GRCh37'
+elif genome == 'GRCh38':
+    fasta = '/ifs/depot/assemblies/H.sapiens/GRCh38_GDC/GRCh38.d1.vd1.fa'
+    mtchrom = 'chrM'
+    ncbibuild = 'GRCh38'
+else:
+    print('The genome build you entered is not supported.')
+    sys.exit(0)
 
 # List of what to map temporary MAF columns to     
 mafnamedict = {4:['t_ref_count','t_alt_count'], 6:['t_ref_fwd','t_alt_fwd'], 7:['t_ref_rev','t_alt_rev'], 8:['n_ref_count','n_alt_count'], 10:['n_ref_fwd','n_alt_fwd'], 11:['n_ref_rev','n_alt_rev']}
@@ -72,10 +87,15 @@ for ii in range(bamfiles.shape[0]):
     
     # Try to get the readcounts for the file
     try:
-        mt = pysam.view('-c',datadir + f,'-q 10','-F 1536','MT')
+        mt = pysam.view('-c',datadir + f,'-q 10','-F 1536',mtchrom)
         mtcounts.at[f,'MTCounts'] = int(mt)
     except:
         print('Error in getting read counts for ' + f + ', moving on...')
+        continue
+        
+    # If the number of counts is small, just move on
+    if int(mt) < 100:
+        print('Skipping ' + f + '...no MT reads to call variants with.')
         continue
         
     # Check if we have a normal file
@@ -90,17 +110,17 @@ for ii in range(bamfiles.shape[0]):
     if normalflag:
         
         # We have a normal bam
-        countcall = ' '.join(["/opt/common/CentOS_6-dev/bin/current/samtools mpileup --region MT --count-orphans --no-BAQ --min-MQ ",str(minmapq), "--min-BQ", str(minbq), "--ignore-RG --excl-flags UNMAP,SECONDARY,QCFAIL,DUP --BCF --output-tags DP,AD,ADF,ADR --gap-frac 0.005 --tandem-qual 80 --fasta-ref /ifs/depot/resources/dmp/data/pubdata/hg-fasta/VERSIONS/hg19/Homo_sapiens_assembly19.fasta", datadir  + f, datadir + normalbam + "| bcftools call --multiallelic-caller --ploidy GRCh37 --keep-alts | bcftools norm --do-not-normalize --multiallelics -any | bcftools query --format '%CHROM\t%POS\t%REF\t%ALT[\t%AD\t%DP\t%ADF\t%ADR]\n'", ">", vcfdir + f + "_temp.maf"])
+        countcall = ' '.join(["/opt/common/CentOS_6-dev/bin/current/samtools mpileup --region", mtchrom, "--count-orphans --no-BAQ --min-MQ ",str(minmapq), "--min-BQ", str(minbq), "--ignore-RG --excl-flags UNMAP,SECONDARY,QCFAIL,DUP --BCF --output-tags DP,AD,ADF,ADR --gap-frac 0.005 --tandem-qual 80 --fasta-ref", fasta, datadir  + f, datadir + normalbam + "| bcftools call --multiallelic-caller --ploidy", genome, "--keep-alts | bcftools norm --do-not-normalize --multiallelics -any | bcftools query --format '%CHROM\t%POS\t%REF\t%ALT[\t%AD\t%DP\t%ADF\t%ADR]\n'", ">", vcfdir + f + "_temp.maf"])
         
-        mafcall = ' '.join( ["cmo_maf2maf --version develop --input-maf", vcfdir + f + "_temp2.maf","--output-maf", outdir + f + ".maf","--retain-cols",retaincols] )
+        mafcall = ' '.join( ["cmo_maf2maf --version develop --input-maf", vcfdir + f + "_temp2.maf","--output-maf", outdir + f + ".maf","--retain-cols",retaincols, "--ncbi-build", ncbibuild, '--ref-fasta',fasta] )
     
     else:
         # We don't have a normal bam
         print('We do not have a normal bam file for ' + f)
         
-        countcall = ' '.join(["/opt/common/CentOS_6-dev/bin/current/samtools mpileup --region MT --count-orphans --no-BAQ --min-MQ ",str(minmapq), "--min-BQ", str(minbq), "--ignore-RG --excl-flags UNMAP,SECONDARY,QCFAIL,DUP --BCF --output-tags DP,AD,ADF,ADR --gap-frac 0.005 --tandem-qual 80 --fasta-ref /ifs/depot/resources/dmp/data/pubdata/hg-fasta/VERSIONS/hg19/Homo_sapiens_assembly19.fasta", datadir  + f + "| bcftools call --multiallelic-caller --ploidy GRCh37 --keep-alts | bcftools norm --do-not-normalize --multiallelics -any | bcftools query --format '%CHROM\t%POS\t%REF\t%ALT[\t%AD\t%DP\t%ADF\t%ADR]\n'", ">", vcfdir + f + "_temp.maf"])
+        countcall = ' '.join(["/opt/common/CentOS_6-dev/bin/current/samtools mpileup --region", mtchrom, "--count-orphans --no-BAQ --min-MQ ",str(minmapq), "--min-BQ", str(minbq), "--ignore-RG --excl-flags UNMAP,SECONDARY,QCFAIL,DUP --BCF --output-tags DP,AD,ADF,ADR --gap-frac 0.005 --tandem-qual 80 --fasta-ref", fasta, datadir  + f + "| bcftools call --multiallelic-caller --ploidy", genome, "--keep-alts | bcftools norm --do-not-normalize --multiallelics -any | bcftools query --format '%CHROM\t%POS\t%REF\t%ALT[\t%AD\t%DP\t%ADF\t%ADR]\n'", ">", vcfdir + f + "_temp.maf"])
         
-        mafcall = ' '.join( ["cmo_maf2maf --version develop --input-maf", vcfdir + f + "_temp2.maf","--output-maf", outdir + f + ".maf","--retain-cols",retaincols] )
+        mafcall = ' '.join( ["cmo_maf2maf --version develop --input-maf", vcfdir + f + "_temp2.maf","--output-maf", outdir + f + ".maf","--retain-cols",retaincols, "--ncbi-build", ncbibuild, '--ref-fasta',fasta] )
     
     
     # Make the VCF file
@@ -145,6 +165,9 @@ for ii in range(bamfiles.shape[0]):
     
     # Write out to a second temporary MAF file, and then call maf2maf
     tempmaf.to_csv(vcfdir + f + "_temp2.maf",index = None,sep = '\t')
+    if tempmaf.shape[0] == 0:
+        print('Skipping ' + f + '...no MT variants.')
+        continue
     
     #print(mafcall)
     os.system(mafcall)
