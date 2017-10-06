@@ -51,8 +51,8 @@ mafnamedict = {4:['t_ref_count','t_alt_count'], 6:['t_ref_fwd','t_alt_fwd'], 7:[
 retaincols = ','.join( ['Tumor_Sample_Barcode', 'Matched_Norm_Sample_Barcode', 't_ref_count','t_alt_count','t_ref_fwd','t_alt_fwd','t_ref_rev','t_alt_rev', 'n_ref_count','n_alt_count','n_ref_fwd','n_alt_fwd','n_ref_rev','n_alt_rev'] )
     
 # Read in the annotations
-trna = pd.read_csv('../data/MitoTIP_March2017.txt',header = 0,sep = '\t')
-mitimpact = pd.read_csv('../data/MitImpact_db_2.7.txt',header = 0,sep = '\t',decimal = ',') # note that the decimal point here is indicated as a comma, mitimpact is funny
+trna = pd.read_csv('../data/MitoTIP_August2017.txt',header = 0,sep = '\t')
+mitimpact = pd.read_csv('../data/MitImpact_db_2.7.txt',header = 0,sep = '\t',decimal = ',') # note that the decimal point here is indicated as a comma, mitimpact is funnypontrna
 
 # Make the indices searchable for annotation for tRNA data
 trna.index = [trna.at[item,'rCRS base'] + str(trna.at[item,'Position']) + trna.at[item,'Change'] if trna.at[item,'Change'] != 'del' else trna.at[item,'rCRS base'] + str(trna.at[item,'Position']) + trna.at[item,'Change'] + trna.at[item,'rCRS base'] for item in trna.index]
@@ -77,13 +77,20 @@ bamfiles = pd.read_csv(args.bamfiles,header = None,sep = '\t')
 fs = bamfiles.ix[:,0]
 
 # Also create a dataframe that stores the depth of MT coverage for each sample
-mtcounts = pd.DataFrame( columns = ['MTCounts'] )
+mtcounts = pd.DataFrame( columns = ['MTCounts','MTCountsNormal'] )
 
 for ii in range(bamfiles.shape[0]):
     
     f = bamfiles.at[ii,0].strip() # remove leading and trailing whitespace
     
     print('Working on ' + f + '...')
+    
+    # Check if we have a normal file
+    if pd.isnull(bamfiles.at[ii,1]):
+        normalflag = False
+    else:
+        normalbam = bamfiles.at[ii,1].strip() # remove leading and trailing whitespace
+        normalflag = True
     
     # Try to get the readcounts for the file
     try:
@@ -92,18 +99,19 @@ for ii in range(bamfiles.shape[0]):
     except:
         print('Error in getting read counts for ' + f + ', moving on...')
         continue
-        
+    
+    if normalflag:
+        try:
+            mtnorm = pysam.view('-c',datadir + normalbam,'-q 10','-F 1536',mtchrom)
+            mtcounts.at[f,'MTCountsNormal'] = mtnorm
+        except:
+            print('Error in getting read counts for ' + normalbam + ',skipping this part.')
+    
     # If the number of counts is small, just move on
     if int(mt) < 100:
         print('Skipping ' + f + '...no MT reads to call variants with.')
-        continue
-        
-    # Check if we have a normal file
-    if pd.isnull(bamfiles.at[ii,1]):
-        normalflag = False
-    else:
-        normalbam = bamfiles.at[ii,1].strip() # remove leading and trailing whitespace
-        normalflag = True
+        continue    
+    
     
     # Part 1: Variant calling. Some samples have normal bam files, others do not. Do not confuse the two.
     
@@ -198,6 +206,8 @@ for ii in range(bamfiles.shape[0]):
     maf['TumorVAF'] = maf['t_alt_count']/maf['t_depth']
     if normalflag:
         maf['NormalVAF'] = maf['n_alt_count']/maf['n_depth']
+    else:
+        maf['NormalVAF'] = 'NA'
     
     ####################################################################################
     ####################################################################################
