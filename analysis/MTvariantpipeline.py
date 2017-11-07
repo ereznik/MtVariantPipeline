@@ -37,10 +37,28 @@ if genome == 'GRCh37':
     fasta = '/ifs/depot/resources/dmp/data/pubdata/hg-fasta/VERSIONS/hg19/Homo_sapiens_assembly19.fasta'
     mtchrom = 'MT'
     ncbibuild = 'GRCh37'
+    maf2maf_fasta = fasta
+    bcfploidy_genome = 'GRCh37'
 elif genome == 'GRCh38':
     fasta = '/ifs/depot/assemblies/H.sapiens/GRCh38_GDC/GRCh38.d1.vd1.fa'
     mtchrom = 'chrM'
     ncbibuild = 'GRCh38'
+    maf2maf_fasta = fasta
+    bcfploidy_genome = 'GRCh38'
+elif genome == 'hg19':
+    # this is the bona fide hg19, with chrM of length 16571
+    fasta = '/ifs/depot/assemblies/H.sapiens/hg19/hg19.fasta'
+    mtchrom = 'chrM'
+    ncbibuild = 'GRCh38'
+    
+    # we need the mapping from yoruba to rcrs
+    rcrsmapping = pd.read_csv('../import/Yoruba2rCRS.txt',header = 0,index_col = 0)
+    
+    # we also need to make sure maf2maf uses the correct hg38 fasta
+    maf2maf_fasta = '/ifs/depot/assemblies/H.sapiens/GRCh38_GDC/GRCh38.d1.vd1.fa'
+    
+    # ploidy for bcftools same as GRCh37
+    bcfploidy_genome = 'GRCh37'
 else:
     print('The genome build you entered is not supported.')
     sys.exit(0)
@@ -71,6 +89,9 @@ mitimpact_cols = ['APOGEE_boost_mean_prob', 'Mitomap_Dec2016_Status', 'Mitomap_D
 
 # These are the "bad" mutations we automatically call pathogenic
 badmuts = ['Nonsense_Mutation','Nonstop_Mutation','Frame_Shift_Del','Frame_Shift_Ins']
+
+# Read in the gene positions
+genepos = pd.read_csv('../data/GenePositions_imported.csv',header = 0,index_col = 0)
 
 # Read in the paired BAM files
 bamfiles = pd.read_csv(args.bamfiles,header = None,sep = '\t')
@@ -118,20 +139,18 @@ for ii in range(bamfiles.shape[0]):
     if normalflag:
         
         # We have a normal bam
-        countcall = ' '.join(["/opt/common/CentOS_6-dev/bin/current/samtools mpileup --region", mtchrom, "--count-orphans --no-BAQ --min-MQ ",str(minmapq), "--min-BQ", str(minbq), "--ignore-RG --excl-flags UNMAP,SECONDARY,QCFAIL,DUP --BCF --output-tags DP,AD,ADF,ADR --gap-frac 0.005 --tandem-qual 80 --fasta-ref", fasta, datadir  + f, datadir + normalbam + "| bcftools call --multiallelic-caller --ploidy", genome, "--keep-alts | bcftools norm --do-not-normalize --multiallelics -any | bcftools query --format '%CHROM\t%POS\t%REF\t%ALT[\t%AD\t%DP\t%ADF\t%ADR]\n'", ">", vcfdir + f + "_temp.maf"])
+        countcall = ' '.join(["/opt/common/CentOS_6-dev/bin/current/samtools mpileup --region", mtchrom, "--count-orphans --no-BAQ --min-MQ ",str(minmapq), "--min-BQ", str(minbq), "--ignore-RG --excl-flags UNMAP,SECONDARY,QCFAIL,DUP --BCF --output-tags DP,AD,ADF,ADR --gap-frac 0.005 --tandem-qual 80 -L 1000000 -d 1000000 --open-prob 30 --fasta-ref", fasta, datadir  + f, datadir + normalbam + "| bcftools call --multiallelic-caller --ploidy", bcfploidy_genome, "--keep-alts | bcftools norm --do-not-normalize --multiallelics -any | bcftools query --format '%CHROM\t%POS\t%REF\t%ALT[\t%AD\t%DP\t%ADF\t%ADR]\n'", ">", vcfdir + f + "_temp.maf"])
         
-        mafcall = ' '.join( ["cmo_maf2maf --version develop --input-maf", vcfdir + f + "_temp2.maf","--output-maf", outdir + f + ".maf","--retain-cols",retaincols, "--ncbi-build", ncbibuild, '--ref-fasta',fasta] )
+        mafcall = ' '.join( ["cmo_maf2maf --version develop --input-maf", vcfdir + f + "_temp2.maf","--output-maf", outdir + f + ".maf","--retain-cols",retaincols, "--ncbi-build", ncbibuild, '--ref-fasta',maf2maf_fasta] )
     
     else:
         # We don't have a normal bam
         print('We do not have a normal bam file for ' + f)
         
-        countcall = ' '.join(["/opt/common/CentOS_6-dev/bin/current/samtools mpileup --region", mtchrom, "--count-orphans --no-BAQ --min-MQ ",str(minmapq), "--min-BQ", str(minbq), "--ignore-RG --excl-flags UNMAP,SECONDARY,QCFAIL,DUP --BCF --output-tags DP,AD,ADF,ADR --gap-frac 0.005 --tandem-qual 80 --fasta-ref", fasta, datadir  + f + "| bcftools call --multiallelic-caller --ploidy", genome, "--keep-alts | bcftools norm --do-not-normalize --multiallelics -any | bcftools query --format '%CHROM\t%POS\t%REF\t%ALT[\t%AD\t%DP\t%ADF\t%ADR]\n'", ">", vcfdir + f + "_temp.maf"])
+        countcall = ' '.join(["/opt/common/CentOS_6-dev/bin/current/samtools mpileup --region", mtchrom, "--count-orphans --no-BAQ --min-MQ ",str(minmapq), "--min-BQ", str(minbq), "--ignore-RG --excl-flags UNMAP,SECONDARY,QCFAIL,DUP --BCF --output-tags DP,AD,ADF,ADR --gap-frac 0.005 --tandem-qual 80 -L 1000000 -d 1000000 --open-prob 30 --fasta-ref", fasta, datadir  + f + "| bcftools call --multiallelic-caller --ploidy", bcfploidy_genome, "--keep-alts | bcftools norm --do-not-normalize --multiallelics -any | bcftools query --format '%CHROM\t%POS\t%REF\t%ALT[\t%AD\t%DP\t%ADF\t%ADR]\n'", ">", vcfdir + f + "_temp.maf"])
         
         mafcall = ' '.join( ["cmo_maf2maf --version develop --input-maf", vcfdir + f + "_temp2.maf","--output-maf", outdir + f + ".maf","--retain-cols",retaincols, "--ncbi-build", ncbibuild, '--ref-fasta',fasta] )
     
-    
-    # Make the VCF file
     #print(countcall)
     os.system(countcall)
     
@@ -170,6 +189,16 @@ for ii in range(bamfiles.shape[0]):
     tempmaf = tempmaf[ tempmaf['t_alt_count'].map(int) >= 5 ]
     tempmaf = tempmaf[ tempmaf['t_alt_fwd'].map(int) >= 2 ]
     tempmaf = tempmaf[ tempmaf['t_alt_rev'].map(int) >= 2 ]
+    
+    # If we are using hg19 with the 16571 long MT chromosome, change the mapping so that we can call variants correctly. 
+    if genome == 'hg19':
+        tempmaf['YorubaPosition'] = tempmaf['Start_Position'].copy()
+        newstarts = rcrsmapping.ix[ 'Position:' + tempmaf['YorubaPosition'].map(int).map(str),0 ].reset_index(drop = True)
+
+        tempmaf['Start_Position'] = newstarts.tolist()
+        tempmaf = tempmaf[ tempmaf['Start_Position'].notnull() ]
+
+        tempmaf['Start_Position'] = tempmaf['Start_Position'].map(int)
     
     # Write out to a second temporary MAF file, and then call maf2maf
     tempmaf.to_csv(vcfdir + f + "_temp2.maf",index = None,sep = '\t')
@@ -235,8 +264,16 @@ for ii in range(bamfiles.shape[0]):
     ####################################################################################
     ####################################################################################
     
-    # Part 3: Write out file
+    # Part 4: Modify the gene names to include rRNA and tRNA
+    #pdb.set_trace()
+    maf['Hugo_Symbol'] = genepos.ix[ maf['Start_Position'].map(int), 'Gene'].reset_index(drop = True)
+    
+    # Also change the control region symbols
+    maf.ix[ (maf['Start_Position'].map(int) <= 576) | (maf['Start_Position'].map(int) >= 16024), 'Hugo_Symbol'] = 'ControlRegion'
+    
+    # Part 5: Write out file
     maf.to_csv(outdir + f + '.maf',index = None,sep = '\t')
+    #pdb.set_trace()
 
 # Write out the counts file as well
 mtcounts.to_csv(outdir + args.bamfiles.split('/')[-1] + 'Counts.txt')

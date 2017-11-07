@@ -6,8 +6,7 @@
 # Note the options for selecting all non-synonymous mutations, or only LOF mutations.
 
 # Example usage:
-# Rscript igv_batch_screenshots_Ed.r -m MergedMAF_TCGATHCA.maf -f T -b /Users/ereznik/Documents/luna/ifs/e63data/makarovv/HCC/rawbam/ 
-# -o /Users/ereznik/Documents/mtimpact/results/hurthle/IGVscreenshots/IGVscript.txt -d /Users/ereznik/Documents/mtimpact/results/hurthle/IGVscreenshots/ -g b37
+# Rscript igv_batch_screenshots_Ed.r -m MergedMAF_TCGATHCA.maf -f T -b /Users/ereznik/Documents/luna/ifs/e63data/makarovv/HCC/rawbam/ -o /Users/ereznik/Documents/mtimpact/results/SPN/IGVscreenshots/IGVscript.txt -d /Users/ereznik/Documents/mtimpact/results/SPN/IGVscreenshots/ -g b37
 
 catverbose <- function(...) {
   cat(format(Sys.time(), "%Y%m%d %H:%M:%S |"), ..., "\n")
@@ -20,9 +19,8 @@ write_batch_script <- function(samples, out, dir, genome, squish=T) {
     cat('new')
     # cat(paste0('\ngenome ', genome))
     dat <- samples[which(samples$patient == id),]
-    bams_to_load <- paste(dat$tumor,
-                          dat$normal, 
-                          sep = ",")
+    #bams_to_load <- paste(dat$tumor,dat$normal,sep = ",")
+    bams_to_load <- dat$tumor # for normal only
     cat(paste0('\nload ', bams_to_load))
     cat(paste0('\nsnapshotDirectory ', dir))
     cat('\nmaxPanelHeight 600\n')
