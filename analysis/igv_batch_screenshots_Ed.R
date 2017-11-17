@@ -7,7 +7,7 @@
 
 # Example usage:
 # Rscript igv_batch_screenshots_Ed.r -m MergedMAF_TCGATHCA.maf -f T -b /Users/ereznik/Documents/luna/ifs/e63data/makarovv/HCC/rawbam/ -o /Users/ereznik/Documents/mtimpact/results/SPN/IGVscreenshots/IGVscript.txt -d /Users/ereznik/Documents/mtimpact/results/SPN/IGVscreenshots/ -g b37
-
+# Rscript igv_batch_screenshots_Ed.r -m /Users/ereznik/Downloads/temp.maf -f T -b /Users/ereznik/Documents/luna/ifs/e63data/makarovv/HCC/rawbam/ -o /Users/ereznik/Downloads/temp.txt -d /Users/ereznik/Documents/mtimpact/results/hurthle/IGVscreenshots/Nov2017/ -g b37
 catverbose <- function(...) {
   cat(format(Sys.time(), "%Y%m%d %H:%M:%S |"), ..., "\n")
 }
@@ -19,8 +19,8 @@ write_batch_script <- function(samples, out, dir, genome, squish=T) {
     cat('new')
     # cat(paste0('\ngenome ', genome))
     dat <- samples[which(samples$patient == id),]
-    #bams_to_load <- paste(dat$tumor,dat$normal,sep = ",")
-    bams_to_load <- dat$tumor # for normal only
+    bams_to_load <- paste(dat$tumor,dat$normal,sep = ",")
+    #bams_to_load <- dat$tumor # for normal only
     cat(paste0('\nload ', bams_to_load))
     cat(paste0('\nsnapshotDirectory ', dir))
     cat('\nmaxPanelHeight 600\n')
@@ -59,11 +59,11 @@ if( ! interactive() ) {
   badmuts = c('Nonsense_Mutation','Missense_Mutation','Nonstop_Mutation','Translation_Start_Site',
               'In_Frame_Del','Frame_Shift_Ins','Frame_Shift_Del','tRNA')
   LOFmuts = c('Nonsense_Mutation','Frame_Shift_Ins','Frame_Shift_Del','tRNA')
-  if (args$filter){
-    maf = maf[which(maf$Variant_Classification %in% LOFmuts),]
-  }else{
-    maf = maf[which(maf$Variant_Classification %in% badmuts),]
-  }
+  # if (args$filter){
+  #   maf = maf[which(maf$Variant_Classification %in% LOFmuts),]
+  # }else{
+  #   maf = maf[which(maf$Variant_Classification %in% badmuts),]
+  # }
   
   # format of the file is sample_id,gene,chromosome,start_position,end_position,path to tumor bam, path to normal bam
   samples = maf[,c('Tumor_Sample_Barcode','Hugo_Symbol','Chromosome','Start_Position','End_Position'),]

@@ -7,10 +7,11 @@ parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument("-d", "--datadir",type=str, help="directory for BAM files")
 parser.add_argument("-v", "--vcfdir", type=str, help="directory for intermediate VCF files")
 parser.add_argument("-o","--outdir",type=str,help="directory for MAF files")
-parser.add_argument("-b","--bamfiles",type=str,help="path to tab-delimited, no header file of tumor/normal bams. BAM names should not include the full path, just the name of the files in datadir to call variants on")
+parser.add_argument("-b","--bamfiles",type=str,help="path to tab-delimited, no header file of tumor/normal bams. BAM names should not include the full path, just the name of the files in datadir to call variants on. If not a .csv file, just include the single name of the tumor bam file you would like to call.")
 parser.add_argument("-q","--mapq",type=int,help="minimum mapping quality, default = 10",default = 10)
 parser.add_argument("-Q","--baseq",type=int,help="minimum base quality, default = 10",default = 10)
 parser.add_argument("-g","--genome",type=str,help="Genome build to use, default = GRCh37, for gdc use GRCh38",default = "GRCh37")
+parser.add_argument("-s","--strand",type=int,help="Minimum number of reads mapping to forward and reverse strand to call mutation, default=2",default = 2)
 parser.add_argument("-h","--help",action='help', default=argparse.SUPPRESS,
                     help='A simple variant calling and annotation pipeline for mitochondrial DNA variants. Accepts both individual BAM files and paired tumor/normal BAM files. Because of the hairiness of multiallelic calling, we keep all positions in the VCF and then filter to remove any positions without at least 10 reads supporting the putative variant. FIX TO DO THIS FOR BOTH NORMAL AND TUMOR SAMPLES! To send a call to bsub, try bsub -R "rusage[mem=16]" -M 32 -We 120 -W 4800 -e $HOME/work/mtimpact/scratch/ -o /home/reznik/work/mtimpact/scratch/ python MTvariantpipeline.py ... with the suitable options specified. Note that we use the CMO version of b37 (which seems to use rCRS), but is named HG19.')
 
@@ -21,6 +22,7 @@ datadir = args.datadir
 vcfdir = args.vcfdir
 outdir = args.outdir
 genome = args.genome
+minstrand = args.strand
 
 # Set key parameters
 minmapq = args.mapq
@@ -52,7 +54,7 @@ elif genome == 'hg19':
     ncbibuild = 'GRCh38'
     
     # we need the mapping from yoruba to rcrs
-    rcrsmapping = pd.read_csv('../import/Yoruba2rCRS.txt',header = 0,index_col = 0)
+    rcrsmapping = pd.read_csv('/home/reznik/work/mtimpact/import/Yoruba2rCRS.txt',header = 0,index_col = 0)
     
     # we also need to make sure maf2maf uses the correct hg38 fasta
     maf2maf_fasta = '/ifs/depot/assemblies/H.sapiens/GRCh38_GDC/GRCh38.d1.vd1.fa'
@@ -69,8 +71,8 @@ mafnamedict = {4:['t_ref_count','t_alt_count'], 6:['t_ref_fwd','t_alt_fwd'], 7:[
 retaincols = ','.join( ['Tumor_Sample_Barcode', 'Matched_Norm_Sample_Barcode', 't_ref_count','t_alt_count','t_ref_fwd','t_alt_fwd','t_ref_rev','t_alt_rev', 'n_ref_count','n_alt_count','n_ref_fwd','n_alt_fwd','n_ref_rev','n_alt_rev'] )
     
 # Read in the annotations
-trna = pd.read_csv('../data/MitoTIP_August2017.txt',header = 0,sep = '\t')
-mitimpact = pd.read_csv('../data/MitImpact_db_2.7.txt',header = 0,sep = '\t',decimal = ',') # note that the decimal point here is indicated as a comma, mitimpact is funnypontrna
+trna = pd.read_csv('/home/reznik/work/mtimpact/data/MitoTIP_August2017.txt',header = 0,sep = '\t')
+mitimpact = pd.read_csv('/home/reznik/work/mtimpact/data/MitImpact_db_2.7.txt',header = 0,sep = '\t',decimal = ',') # note that the decimal point here is indicated as a comma, mitimpact is funnypontrna
 
 # Make the indices searchable for annotation for tRNA data
 trna.index = [trna.at[item,'rCRS base'] + str(trna.at[item,'Position']) + trna.at[item,'Change'] if trna.at[item,'Change'] != 'del' else trna.at[item,'rCRS base'] + str(trna.at[item,'Position']) + trna.at[item,'Change'] + trna.at[item,'rCRS base'] for item in trna.index]
@@ -91,11 +93,16 @@ mitimpact_cols = ['APOGEE_boost_mean_prob', 'Mitomap_Dec2016_Status', 'Mitomap_D
 badmuts = ['Nonsense_Mutation','Nonstop_Mutation','Frame_Shift_Del','Frame_Shift_Ins']
 
 # Read in the gene positions
-genepos = pd.read_csv('../data/GenePositions_imported.csv',header = 0,index_col = 0)
+genepos = pd.read_csv('/home/reznik/work/mtimpact/data/GenePositions_imported.csv',header = 0,index_col = 0)
 
 # Read in the paired BAM files
-bamfiles = pd.read_csv(args.bamfiles,header = None,sep = '\t')
-fs = bamfiles.ix[:,0]
+if args.bamfiles.endswith('.csv') or args.bamfiles.endswith('.txt'):
+    bamfiles = pd.read_csv(args.bamfiles,header = None,sep = '\t')
+    fs = bamfiles.ix[:,0]
+else:
+    # We just have a single bamfile, call from that
+    bamfiles = pd.DataFrame(columns = [0,1])
+    bamfiles.at[0,0] = args.bamfiles
 
 # Also create a dataframe that stores the depth of MT coverage for each sample
 mtcounts = pd.DataFrame( columns = ['MTCounts','MTCountsNormal'] )
@@ -186,9 +193,9 @@ for ii in range(bamfiles.shape[0]):
     tempmaf = tempmaf.drop( cols2use, 1 )
     
     # Make sure that any variants we keep have at least 5 reads, with at least one alternate read in both directions
-    tempmaf = tempmaf[ tempmaf['t_alt_count'].map(int) >= 5 ]
-    tempmaf = tempmaf[ tempmaf['t_alt_fwd'].map(int) >= 2 ]
-    tempmaf = tempmaf[ tempmaf['t_alt_rev'].map(int) >= 2 ]
+    #tempmaf = tempmaf[ tempmaf['t_alt_count'].map(int) >= 5 ] #this feels unnecessary since we have the strand-specific values below, which would by default require coverage of at least 4 anyway
+    tempmaf = tempmaf[ tempmaf['t_alt_fwd'].map(int) >= minstrand ]
+    tempmaf = tempmaf[ tempmaf['t_alt_rev'].map(int) >= minstrand ]
     
     # If we are using hg19 with the 16571 long MT chromosome, change the mapping so that we can call variants correctly. 
     if genome == 'hg19':
