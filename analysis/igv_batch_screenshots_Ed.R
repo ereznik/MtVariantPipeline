@@ -7,7 +7,13 @@
 
 # Example usage:
 # Rscript igv_batch_screenshots_Ed.r -m MergedMAF_TCGATHCA.maf -f T -b /Users/ereznik/Documents/luna/ifs/e63data/makarovv/HCC/rawbam/ -o /Users/ereznik/Documents/mtimpact/results/SPN/IGVscreenshots/IGVscript.txt -d /Users/ereznik/Documents/mtimpact/results/SPN/IGVscreenshots/ -g b37
+
 # Rscript igv_batch_screenshots_Ed.r -m /Users/ereznik/Downloads/temp.maf -f T -b /Users/ereznik/Documents/luna/ifs/e63data/makarovv/HCC/rawbam/ -o /Users/ereznik/Downloads/temp.txt -d /Users/ereznik/Documents/mtimpact/results/hurthle/IGVscreenshots/Nov2017/ -g b37
+
+# Rscript igv_batch_screenshots_Ed.r -m /Users/ereznik/Documents/mtimpact/results/riaz_immune/prevspost_lung_MAF.maf -f T -b /Users/ereznik/Documents/luna/warm/chan/_tmp_BMS_153_bam/ -o /Users/ereznik/Downloads/temp.txt -d /Users/ereznik/Documents/mtimpact/results/riaz_immune/IGV_lung/ -g b37
+
+# Rscript igv_batch_screenshots_Ed.r -m /Users/ereznik/Documents/mtimpact/results/riaz_immune/prevspost_melanoma_MAF.maf -f T -b /Users/ereznik/Documents/luna/warm/chan/_tmp_BMS_038_bam/ -o /Users/ereznik/Downloads/temp.txt -d /Users/ereznik/Documents/mtimpact/results/riaz_immune/IGV_melanoma/ -g b37
+
 catverbose <- function(...) {
   cat(format(Sys.time(), "%Y%m%d %H:%M:%S |"), ..., "\n")
 }
