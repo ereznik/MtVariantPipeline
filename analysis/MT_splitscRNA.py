@@ -1,4 +1,4 @@
-# Script to split a single cell RNA BAM that is aggregated across all cells into distinct files per cell.
+# Script to split a single cell RNA BAM that is aggregated across all cells into distinct files per cell. Data is stored in /ifs/e63data/leslielab/pelossof/public/sc/
 
 import pysam, os, sys, numpy as np, pandas as pd, pdb
 from collections import Counter
@@ -22,7 +22,10 @@ for read in bamfile.fetch('MT',1,16569):
     
 # identify ids that have sufficiently sequencing depth and make unique bam files for them
 cellcounts = Counter(cellids)
-highcells = [item[0] for item in cellcounts.items() if cellcounts[item[0]] > 10000]
+highcells = [item[0] for item in cellcounts.items() if cellcounts[item[0]] > 1000]
+
+# Write out counts
+pd.DataFrame(cellcounts.values(),index = cellcounts.keys()).to_csv(datadir + b.split('/')[-1] + 'CellCounts_mtDNA.csv')
 #pdb.set_trace()
 #highcells = ['CAAGTTGTCGATAGAA'] # for testing
 
@@ -30,6 +33,7 @@ print('Going through each cell with sufficient reads')
 for uqcell in highcells:
     umidict = dict()
     dropctr = 0
+    print(uqcell)
     
     splitbamname =  b.split('/')[-1].split('_')[0] + '_' + uqcell + '.bam'
     bamout = pysam.AlignmentFile(datadir + splitbamname, 'wb', template=bamfile)
@@ -74,4 +78,4 @@ for uqcell in highcells:
     # Now call the variant-calling pipeline
     vcall = ' '.join(['python /home/reznik/work/mtimpact/analysis/MTvariantpipeline.py', '-d',datadir, '-v',vcfdir, '-o',outdir, '-b',splitbamname, '-g', 'GRCh37','-q', '0', '-Q', '0','--strand','1'])
     
-    os.system(vcall)
+    #os.system(vcall)
