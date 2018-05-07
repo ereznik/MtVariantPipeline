@@ -43,7 +43,8 @@ if genome == 'GRCh37':
     maf2maf_fasta = fasta
     bcfploidy_genome = 'GRCh37'
 elif genome == 'GRCh38':
-    fasta = '/ifs/depot/assemblies/H.sapiens/GRCh38_GDC/GRCh38.d1.vd1.fa'
+    #fasta = '/ifs/depot/assemblies/H.sapiens/GRCh38_GDC/GRCh38.d1.vd1.fa'
+    fasta = '/ifs/depot/pi/resources/genomes/GRCh38/fasta/GRCh38.d1.vd1.fa'
     mtchrom = 'chrM'
     ncbibuild = 'GRCh38'
     maf2maf_fasta = fasta
@@ -59,7 +60,8 @@ elif genome == 'hg19':
     rcrsmapping = pd.read_csv('/home/reznik/work/mtimpact/import/Yoruba2rCRS.txt',header = 0,index_col = 0)
     
     # we also need to make sure maf2maf uses the correct hg38 fasta
-    maf2maf_fasta = '/ifs/depot/assemblies/H.sapiens/GRCh38_GDC/GRCh38.d1.vd1.fa'
+    #maf2maf_fasta = '/ifs/depot/assemblies/H.sapiens/GRCh38_GDC/GRCh38.d1.vd1.fa'
+    maf2maf_fasta = '/ifs/depot/pi/resources/genomes/GRCh38/fasta/GRCh38.d1.vd1.fa'
     
     # ploidy for bcftools same as GRCh37
     bcfploidy_genome = 'GRCh37'
