@@ -162,7 +162,7 @@ for ii in range(bamfiles.shape[0]):
         
         mafcall = ' '.join( ["cmo_maf2maf --input-maf", vcfdir + f + "_temp2.maf","--output-maf", outdir + f + ".maf","--retain-cols",retaincols, "--ncbi-build", ncbibuild, '--ref-fasta',fasta] )
     
-    #print(countcall)
+    print(countcall)
     os.system(countcall)
     
     # Read in the prelim MAF file, and remove any rows that have 0 non-ref reads.
@@ -217,7 +217,7 @@ for ii in range(bamfiles.shape[0]):
         print('Skipping ' + f + '...no MT variants.')
         continue
     
-    #print(mafcall)
+    print(mafcall)
     #pdb.set_trace()
     os.system(mafcall)
     
@@ -289,4 +289,14 @@ for ii in range(bamfiles.shape[0]):
 
 # Write out the counts file as well
 mtcounts.to_csv(outdir + args.bamfiles.split('/')[-1] + 'Counts.txt')
-    
+
+# Write out the options that we used
+optsfile = open(outdir + args.bamfiles.split('/')[-1] + 'Options.txt','w')
+optsfile.write('datadir: ' + datadir + '\n')
+optsfile.write('vcfdir: ' + vcfdir + '\n')
+optsfile.write('outdir: ' + outdir + '\n')
+optsfile.write('genome: ' + genome + '\n')
+optsfile.write('minstrand: ' + str(minstrand) + '\n')
+optsfile.write('minmapq: ' + str(minmapq) + '\n')
+optsfile.write('minbq:' + str(minbq) + '\n')
+optsfile.close()

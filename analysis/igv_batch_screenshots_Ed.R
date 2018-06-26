@@ -14,6 +14,8 @@
 
 # Rscript igv_batch_screenshots_Ed.r -m /Users/ereznik/Documents/mtimpact/results/riaz_immune/prevspost_melanoma_MAF.maf -f T -b /Users/ereznik/Documents/luna/warm/chan/_tmp_BMS_038_bam/ -o /Users/ereznik/Downloads/temp.txt -d /Users/ereznik/Documents/mtimpact/results/riaz_immune/IGV_melanoma/ -g b37
 
+# Rscript igv_batch_screenshots_Ed.r -m /Users/ereznik/Documents/mtimpact/analysis/NIFTP/MergedMAF_NIFTP_May142018.maf_filtered.maf -f T -b /Users/ereznik/Documents/luna/ifs/res/share/reznik/ganlyi/Proj_08320_B/r_001/FinalBams/ -o /Users/ereznik/Downloads/temp.txt -d /Users/ereznik/Documents/mtimpact/results/NIFTP/screenshots/ -g b37
+
 catverbose <- function(...) {
   cat(format(Sys.time(), "%Y%m%d %H:%M:%S |"), ..., "\n")
 }
