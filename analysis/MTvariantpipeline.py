@@ -150,7 +150,7 @@ for ii in range(bamfiles.shape[0]):
     if normalflag:
         
         # We have a normal bam
-        countcall = ' '.join(["/opt/common/CentOS_6-dev/bin/current/samtools mpileup --region", mtchrom, "--count-orphans --no-BAQ --min-MQ ",str(minmapq), "--min-BQ", str(minbq), "--ignore-RG --excl-flags UNMAP,SECONDARY,QCFAIL,DUP --BCF --output-tags DP,AD,ADF,ADR --gap-frac 0.005 --tandem-qual 80 -L 1000000 -d 1000000 --open-prob 30 --fasta-ref", fasta, datadir  + f, datadir + normalbam + "| bcftools call --multiallelic-caller --ploidy", bcfploidy_genome, "--keep-alts | bcftools norm --multiallelics -any | bcftools query --format '%CHROM\t%POS\t%REF\t%ALT[\t%AD\t%DP\t%ADF\t%ADR]\n'", ">", vcfdir + f + "_temp.maf"])
+        countcall = ' '.join(["/opt/common/CentOS_6-dev/bin/current/samtools mpileup --region", mtchrom, "--count-orphans --no-BAQ --min-MQ ",str(minmapq), "--min-BQ", str(minbq), "--ignore-RG --excl-flags UNMAP,SECONDARY,QCFAIL,DUP --BCF --output-tags DP,AD,ADF,ADR --gap-frac 0.005 --tandem-qual 80 -L 1000000 -d 1000000 --open-prob 30 --fasta-ref", fasta, datadir  + f, datadir + normalbam + "| bcftools call --multiallelic-caller --ploidy", bcfploidy_genome, "--keep-alts | bcftools norm --multiallelics -any --do-not-normalize | vt normalize -r /ifs/depot/pi/resources/genomes/GRCh37/fasta/b37.fasta - 2>/dev/null | bcftools query --format '%CHROM\t%POS\t%REF\t%ALT[\t%AD\t%DP\t%ADF\t%ADR]\n'", ">", vcfdir + f + "_temp.maf"])
         
         mafcall = ' '.join( ["cmo_maf2maf --input-maf", vcfdir + f + "_temp2.maf","--output-maf", outdir + f + ".maf","--retain-cols",retaincols, "--ncbi-build", ncbibuild, '--ref-fasta',maf2maf_fasta] )
     
@@ -158,7 +158,7 @@ for ii in range(bamfiles.shape[0]):
         # We don't have a normal bam
         print('We do not have a normal bam file for ' + f)
         
-        countcall = ' '.join(["/opt/common/CentOS_6-dev/bin/current/samtools mpileup --region", mtchrom, "--count-orphans --no-BAQ --min-MQ ",str(minmapq), "--min-BQ", str(minbq), "--ignore-RG --excl-flags UNMAP,SECONDARY,QCFAIL,DUP --BCF --output-tags DP,AD,ADF,ADR --gap-frac 0.005 --tandem-qual 80 -L 1000000 -d 1000000 --open-prob 30 --fasta-ref", fasta, datadir  + f + "| bcftools call --multiallelic-caller --ploidy", bcfploidy_genome, "--keep-alts | bcftools norm --multiallelics -any | bcftools query --format '%CHROM\t%POS\t%REF\t%ALT[\t%AD\t%DP\t%ADF\t%ADR]\n'", ">", vcfdir + f + "_temp.maf"])
+        countcall = ' '.join(["/opt/common/CentOS_6-dev/bin/current/samtools mpileup --region", mtchrom, "--count-orphans --no-BAQ --min-MQ ",str(minmapq), "--min-BQ", str(minbq), "--ignore-RG --excl-flags UNMAP,SECONDARY,QCFAIL,DUP --BCF --output-tags DP,AD,ADF,ADR --gap-frac 0.005 --tandem-qual 80 -L 1000000 -d 1000000 --open-prob 30 --fasta-ref", fasta, datadir  + f + "| bcftools call --multiallelic-caller --ploidy", bcfploidy_genome, "--keep-alts | bcftools norm --multiallelics -any --do-not-normalize | vt normalize -r /ifs/depot/pi/resources/genomes/GRCh37/fasta/b37.fasta - 2>/dev/null | bcftools query --format '%CHROM\t%POS\t%REF\t%ALT[\t%AD\t%DP\t%ADF\t%ADR]\n'", ">", vcfdir + f + "_temp.maf"])
         
         mafcall = ' '.join( ["cmo_maf2maf --input-maf", vcfdir + f + "_temp2.maf","--output-maf", outdir + f + ".maf","--retain-cols",retaincols, "--ncbi-build", ncbibuild, '--ref-fasta',fasta] )
     
