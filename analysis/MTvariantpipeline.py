@@ -9,7 +9,7 @@ parser.add_argument("-v", "--vcfdir", type=str, help="directory for intermediate
 parser.add_argument("-o","--outdir",type=str,help="directory for MAF files")
 parser.add_argument("-b","--bamfiles",type=str,help="path to tab-delimited, no header file of tumor/normal bams. BAM names should not include the full path, just the name of the files in datadir to call variants on. If not a .csv file, just include the single name of the tumor bam file you would like to call.")
 parser.add_argument("-q","--mapq",type=int,help="minimum mapping quality, default = 10",default = 10)
-parser.add_argument("-Q","--baseq",type=int,help="minimum base quality, default = 10",default = 10)
+parser.add_argument("-Q","--baseq",type=int,help="minimum base quality, default = 20",default = 20)
 parser.add_argument("-g","--genome",type=str,help="Genome build to use, default = GRCh37, for gdc use GRCh38",default = "GRCh37")
 parser.add_argument("-s","--strand",type=int,help="Minimum number of reads mapping to forward and reverse strand to call mutation, default=2",default = 2)
 parser.add_argument("-h","--help",action='help', default=argparse.SUPPRESS,
