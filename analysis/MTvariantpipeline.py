@@ -58,6 +58,8 @@ elif genome == 'hg19':
     
     # we need the mapping from yoruba to rcrs
     rcrsmapping = pd.read_csv('/home/reznik/work/mtimpact/import/Yoruba2rCRS.txt',header = 0,index_col = 0)
+    yorubasnps = pd.read_csv('/home/reznik/work/mtimpact/data/Yoruba_vs_rCRS_specificSNPs.csv',header = 0,index_col = 0) # there are some yoruba-specific snps we need to change
+    yorubasnps.index = ['Position:' + str(item) for item in yorubasnps.index]
     
     # we also need to make sure maf2maf uses the correct hg38 fasta
     #maf2maf_fasta = '/ifs/depot/assemblies/H.sapiens/GRCh38_GDC/GRCh38.d1.vd1.fa'
@@ -76,7 +78,7 @@ retaincols = ','.join( ['Tumor_Sample_Barcode', 'Matched_Norm_Sample_Barcode', '
     
 # Read in the annotations
 trna = pd.read_csv('/home/reznik/work/mtimpact/data/MitoTIP_August2017.txt',header = 0,sep = '\t')
-mitimpact = pd.read_csv('/home/reznik/work/mtimpact/data/MitImpact_db_2.7.txt',header = 0,sep = '\t',decimal = ',') # note that the decimal point here is indicated as a comma, mitimpact is funnypontrna
+mitimpact = pd.read_csv('/home/reznik/work/mtimpact/data/MitImpact_db_2.9.1.txt',header = 0,sep = '\t',decimal = ',') # note that the decimal point here is indicated as a comma, mitimpact is funnypontrna
 
 # Make the indices searchable for annotation for tRNA data
 trna.index = [trna.at[item,'rCRS base'] + str(trna.at[item,'Position']) + trna.at[item,'Change'] if trna.at[item,'Change'] != 'del' else trna.at[item,'rCRS base'] + str(trna.at[item,'Position']) + trna.at[item,'Change'] + trna.at[item,'rCRS base'] for item in trna.index]
@@ -160,7 +162,7 @@ for ii in range(bamfiles.shape[0]):
         
         countcall = ' '.join(["/opt/common/CentOS_6-dev/bin/current/samtools mpileup --region", mtchrom, "--count-orphans --no-BAQ --min-MQ ",str(minmapq), "--min-BQ", str(minbq), "--ignore-RG --excl-flags UNMAP,SECONDARY,QCFAIL,DUP --BCF --output-tags DP,AD,ADF,ADR --gap-frac 0.005 --tandem-qual 80 -L 1000000 -d 1000000 --open-prob 30 --fasta-ref", fasta, datadir  + f + "| bcftools call --multiallelic-caller --ploidy", bcfploidy_genome, "--keep-alts | bcftools norm --multiallelics -any --do-not-normalize | vt normalize -r", fasta, " - 2>/dev/null | bcftools query --format '%CHROM\t%POS\t%REF\t%ALT[\t%AD\t%DP\t%ADF\t%ADR]\n'", ">", vcfdir + f + "_temp.maf"])
         
-        mafcall = ' '.join( ["cmo_maf2maf --input-maf", vcfdir + f + "_temp2.maf","--output-maf", outdir + f + ".maf","--retain-cols",retaincols, "--ncbi-build", ncbibuild, '--ref-fasta',fasta] )
+        mafcall = ' '.join( ["cmo_maf2maf --input-maf", vcfdir + f + "_temp2.maf","--output-maf", outdir + f + ".maf","--retain-cols",retaincols, "--ncbi-build", ncbibuild, '--ref-fasta',maf2maf_fasta] )
     
     print(countcall)
     os.system(countcall)
@@ -168,6 +170,7 @@ for ii in range(bamfiles.shape[0]):
     # Read in the prelim MAF file, and remove any rows that have 0 non-ref reads.
     tempmaf = pd.read_csv(vcfdir + f + "_temp.maf",header = None,sep = '\t')
     tempmaf = tempmaf[ tempmaf[3] != '.' ]
+
     if normalflag:
         tempmaf.columns = ['Chromosome', 'Start_Position', 'Reference_Allele', 'Tumor_Seq_Allele2',4,'t_depth',6,7,8,'n_depth',10,11]
         
@@ -196,15 +199,26 @@ for ii in range(bamfiles.shape[0]):
     # Drop unnecessary columns
     tempmaf = tempmaf.drop( cols2use, 1 )
     
-    # Make sure that any variants we keep have at least 5 reads, with at least one alternate read in both directions
-    #tempmaf = tempmaf[ tempmaf['t_alt_count'].map(int) >= 5 ] #this feels unnecessary since we have the strand-specific values below, which would by default require coverage of at least 4 anyway
+	# Since we have the strand-specific values below, which would by default require coverage of at least minstrand*2 anyway
     tempmaf = tempmaf[ tempmaf['t_alt_fwd'].map(int) >= minstrand ]
     tempmaf = tempmaf[ tempmaf['t_alt_rev'].map(int) >= minstrand ]
     
     # If we are using hg19 with the 16571 long MT chromosome, change the mapping so that we can call variants correctly. 
     if genome == 'hg19':
     	print('Mapping from Yoruba to rCRS, this may introduce a mismatch in the reference allele!')
+    	
+    	# Make this into a VCF file, then use 
+    	
+    	# now re-map the snps
         tempmaf['YorubaPosition'] = tempmaf['Start_Position'].copy()
+        tempmaf['YorubaAllele'] = tempmaf['Reference_Allele'].copy()
+        tempmaf['YorubaFlag'] = 'FALSE'
+        for item in tempmaf.index:
+        	posii = 'Position:' + str( tempmaf.loc[item,'YorubaPosition'] )
+        	if posii in yorubasnps.index:
+        		tempmaf.loc[item,'YorubaFlag'] = 'TRUE'
+        
+        #Now change the start position as well		
         newstarts = rcrsmapping.ix[ 'Position:' + tempmaf['YorubaPosition'].map(int).map(str),0 ].reset_index(drop = True)
 
         tempmaf['Start_Position'] = newstarts.tolist()
